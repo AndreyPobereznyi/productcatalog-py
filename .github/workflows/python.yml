@@ -32,4 +32,4 @@ jobs:
       # Крок 4: Запуск тестів за допомогою pytest
       - name: Test with pytest
         run: |
-          pytest productcatalog-py/
+          pytest
