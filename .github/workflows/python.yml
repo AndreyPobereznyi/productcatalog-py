@@ -4,9 +4,9 @@ name: Python application test
 # Тригери
 on:
   push:
-    branches: [ "unit_test" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 jobs:
   build:
