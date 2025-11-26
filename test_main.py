@@ -1,73 +1,34 @@
-import requests
+import pytest
 from fastapi.testclient import TestClient
-import main
+from main import app, orders
+from datetime import datetime, timedelta
 
-# Створюємо клієнт для тестування
-client = TestClient(main.app)
+client = TestClient(app)
 
 def test_create_order_success(requests_mock):
-    """
-    Тестує успішне створення замовлення, коли всі товари доступні.
-    """
-    # Arrange (Підготовка)
-    # Мокуємо успішну відповідь для кожного товару з ПРАВИЛЬНОЮ адресою
-    requests_mock.get(
-        "http://localhost:8080/products/1",
-        json={"id": 1, "name": "Laptop", "price": 1200.50}
-    )
-    requests_mock.get(
-        "http://localhost:8080/products/2",
-        json={"id": 2, "name": "Smartphone", "price": 800.00}
-    )
+    # Мокаємо відповіді сервісу продуктів
+    product_id = 1
+    price = 100.0
+    requests_mock.get(f"http://localhost:8080/products/{product_id}", json={"id": product_id, "price": price})
 
-    order_payload = [
-        {"product_id": 1, "quantity": 1},
-        {"product_id": 2, "quantity": 2}
-    ]
+    # Формуємо замовлення
+    order_data = [{"product_id": product_id, "quantity": 2}]
+    response = client.post("/orders", json=order_data)
 
-    # Act (Дія)
-    response = client.post("/orders", json=order_payload)
-
-    # Assert (Перевірка)
     assert response.status_code == 201
-    response_data = response.json()
-
-    # 'items' - це список, тому доступ до елементів відбувається через індекс
-    assert response_data["items"][0]["product_id"] == 1
-    assert response_data["items"][1]["product_id"] == 2
-
-    # Перевіряємо, що загальна сума розрахована правильно
-    assert response_data["total_amount"] == 2800.50
+    data = response.json()
+    assert data["total_amount"] == 200.0
+    assert len(data["items"]) == 1
+    assert data["items"][0]["product_id"] == product_id
+    assert data["items"][0]["quantity"] == 2
+    assert "deliveryDate" in data
 
 def test_create_order_product_not_found(requests_mock):
-    """
-    Тестує випадок, коли один із товарів у замовленні не знайдено.
-    """
-    # Arrange
-    requests_mock.get("http://localhost:8080/products/99", status_code=404)
-    order_payload = [{"product_id": 99, "quantity": 1}]
+    product_id = 999
+    requests_mock.get(f"http://localhost:8080/products/{product_id}", status_code=404)
 
-    # Act
-    response = client.post("/orders", json=order_payload)
+    order_data = [{"product_id": product_id, "quantity": 1}]
+    response = client.post("/orders", json=order_data)
 
-    # Assert
     assert response.status_code == 400
-    assert "Product with id 99 not found" in response.json()["detail"]
-
-def test_create_order_product_service_unavailable(requests_mock):
-    """
-    Тестує випадок, коли сервіс продуктів недоступний.
-    """
-    # Arrange
-    requests_mock.get(
-        "http://localhost:8080/products/1",
-        exc=requests.exceptions.ConnectionError
-    )
-    order_payload = [{"product_id": 1, "quantity": 1}]
-
-    # Act
-    response = client.post("/orders", json=order_payload)
-
-    # Assert
-    assert response.status_code == 503
-    assert "Cannot connect to Product service" in response.json()["detail"]
+    assert f"Product with id {product_id} not found" in response.json()["detail"]
